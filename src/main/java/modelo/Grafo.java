@@ -32,29 +32,30 @@ public class Grafo {
         vertices.add(v);
         listaAdyacencia.putIfAbsent(v, new ArrayList<>());
     }
-    public void agregarArista(int origen, int destino, double peso) {
+    public boolean agregarArista(int origen, int destino, double peso) {
         if (origen < 0 || destino < 0) {
             throw new IllegalArgumentException("Los vértices deben ser enteros no negativos.");
         }
         agregarVertice(origen);
         agregarVertice(destino);
 
-
-        actualizarOAgregar(origen, destino, peso);
+        boolean esNueva = actualizarOAgregar(origen, destino, peso);
         if (!esDirigido && origen != destino) {
             actualizarOAgregar(destino, origen, peso);
         }
+        return esNueva;
     }
 
-    private void actualizarOAgregar(int u, int v, double peso) {
+    private boolean actualizarOAgregar(int u, int v, double peso) {
         List<Arista> adyacentes = listaAdyacencia.get(u);
         for (Arista a : adyacentes) {
             if (a.getDestino() == v) {
                 a.setPeso(peso);
-                return;
+                return false;
             }
         }
         adyacentes.add(new Arista(u, v, peso));
+        return true;
     }
 
     public void eliminarArista(int origen, int destino) {

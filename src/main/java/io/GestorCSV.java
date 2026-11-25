@@ -2,85 +2,106 @@ package io;
 
 import modelo.Arista;
 import modelo.Grafo;
-
 import java.io.*;
-import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 
 public class GestorCSV {
 
+    public static class ResultadoImportacion {
+        public int verticesImportados;
+        public int aristasImportadas;
+        public List<String> errores = new ArrayList<>();
+    }
 
-    public static Grafo cargarDesdeCSV(File archivo, boolean dirigidoPorDefecto) throws IOException {
-        boolean esDirigido = dirigidoPorDefecto;
-        Grafo grafo = new Grafo(esDirigido);
+    public static ResultadoImportacion importarCSV(File archivo, Grafo grafo) throws IOException {
+        ResultadoImportacion resultado = new ResultadoImportacion();
 
-        try (BufferedReader br = new BufferedReader(new InputStreamReader(new FileInputStream(archivo), StandardCharsets.UTF_8))) {
-            String linea;
-            boolean primeraLinea = true;
+        try (BufferedReader br = new BufferedReader(new FileReader(archivo))) {
+            String linea = br.readLine();
+            if (linea == null) {
+                throw new IOException("El archivo CSV está vacío.");
+            }
 
+
+            String[] encabezados = linea.trim().toLowerCase().split(",");
+            if (encabezados.length < 3 || !encabezados[0].trim().equals("origen") ||
+                    !encabezados[1].trim().equals("destino") || !encabezados[2].trim().equals("peso")) {
+                throw new IOException("Encabezado inválido. Se requiere: origen,destino,peso");
+            }
+
+            int numLinea = 1;
             while ((linea = br.readLine()) != null) {
-                linea = linea.trim();
-                if (linea.isEmpty() || linea.startsWith("#")) {
+                numLinea++;
+                if (linea.trim().isEmpty()) continue;
+
+                String[] partes = linea.split(",", -1);
+                if (partes.length < 3) {
+                    resultado.errores.add("Línea " + numLinea + ": Registro incompleto.");
                     continue;
                 }
 
-                if (primeraLinea) {
-                    primeraLinea = false;
-                    if (linea.equalsIgnoreCase("DIRIGIDO")) {
-                        esDirigido = true;
-                        grafo.setEsDirigido(true);
-                        continue;
-                    } else if (linea.equalsIgnoreCase("NO_DIRIGIDO")) {
-                        esDirigido = false;
-                        grafo.setEsDirigido(false);
+                String strOrigen = partes[0].trim();
+                String strDestino = partes[1].trim();
+                String strPeso = partes[2].trim();
+
+
+                if (!strOrigen.isEmpty() && strDestino.isEmpty()) {
+                    try {
+                        int vAislado = Integer.parseInt(strOrigen);
+                        grafo.agregarVertice(vAislado);
+                    } catch (NumberFormatException e) {
+                        resultado.errores.add("Línea " + numLinea + ": Vértice aislado no numérico.");
+                    }
+                    continue;
+                }
+
+                if (strOrigen.isEmpty() || strDestino.isEmpty()) {
+                    resultado.errores.add("Línea " + numLinea + ": Vértice vacío en conexión.");
+                    continue;
+                }
+
+                try {
+                    int origen = Integer.parseInt(strOrigen);
+                    int destino = Integer.parseInt(strDestino);
+                    double peso = Double.parseDouble(strPeso);
+
+                    if (peso < 0) {
+                        resultado.errores.add("Línea " + numLinea + ": Peso negativo no permitido (" + peso + ").");
                         continue;
                     }
-                }
+                    if (origen == destino) {
+                        resultado.errores.add("Línea " + numLinea + ": Conexión consigo mismo rechazada (" + origen + ").");
+                        continue;
+                    }
 
-                String[] partes = linea.split(",");
-                if (partes.length == 1) {
-                    // Permite declarar vertices aislados en una sola columna
-                    int v = Integer.parseInt(partes[0].trim());
-                    grafo.agregarVertice(v);
-                } else if (partes.length >= 2) {
-                    int origen = Integer.parseInt(partes[0].trim());
-                    int destino = Integer.parseInt(partes[1].trim());
-                    double peso = (partes.length >= 3) ? Double.parseDouble(partes[2].trim()) : 1.0;
-                    grafo.agregarArista(origen, destino, peso);
+                    boolean agregada = grafo.agregarArista(origen, destino, peso);
+                    if (agregada) {
+                        resultado.aristasImportadas++;
+                    } else {
+                        resultado.errores.add("Línea " + numLinea + ": Conexión duplicada (" + origen + " -> " + destino + ").");
+                    }
+
+                } catch (NumberFormatException e) {
+                    resultado.errores.add("Línea " + numLinea + ": Formato numérico inválido.");
                 }
             }
-        } catch (NumberFormatException e) {
-            throw new IOException("Formato numérico inválido en el archivo CSV: " + e.getMessage(), e);
         }
 
-        return grafo;
+        resultado.verticesImportados = grafo.getVertices().size();
+        return resultado;
     }
 
-
-    public static void guardarEnCSV(Grafo grafo, File archivo) throws IOException {
-        try (BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(archivo), StandardCharsets.UTF_8))) {
-            bw.write(grafo.isEsDirigido() ? "DIRIGIDO" : "NO_DIRIGIDO");
+    public static void exportarCSV(File archivo, Grafo grafo) throws IOException {
+        try (BufferedWriter bw = new BufferedWriter(new FileWriter(archivo))) {
+            bw.write("origen,destino,peso");
             bw.newLine();
 
 
-            for (Arista a : grafo.obtenerTodasLasAristas()) {
+            List<Arista> aristas = grafo.obtenerTodasLasAristas();
+            for (Arista a : aristas) {
                 bw.write(a.getOrigen() + "," + a.getDestino() + "," + a.getPeso());
                 bw.newLine();
-            }
-
-            for (int v : grafo.getVertices()) {
-                boolean tieneConexion = !grafo.getListaAdyacencia().get(v).isEmpty();
-                if (!tieneConexion && grafo.isEsDirigido()) {
-                    for (Arista a : grafo.obtenerTodasLasAristas()) {
-                        if (a.getDestino() == v) {
-                            tieneConexion = true;
-                            break;
-                        }
-                    }
-                }
-                if (!tieneConexion) {
-                    bw.write(String.valueOf(v));
-                    bw.newLine();
-                }
             }
         }
     }
