@@ -1,13 +1,19 @@
 package vista;
 
 import algoritmos.AlgoritmosGrafo;
+import algoritmos.BenchmarkService;
 import algoritmos.Ordenamiento;
 import io.GestorCSV;
 import javafx.application.Application;
 import javafx.beans.property.SimpleDoubleProperty;
 import javafx.beans.property.SimpleIntegerProperty;
 import javafx.collections.FXCollections;
+import javafx.concurrent.Task;
+import javafx.beans.property.SimpleStringProperty;
 import javafx.geometry.Insets;
+import javafx.scene.chart.LineChart;
+import javafx.scene.chart.NumberAxis;
+import javafx.scene.chart.XYChart;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
@@ -106,9 +112,11 @@ public class MainApp extends Application {
         TabPane pestanasCentro = new TabPane();
         Tab tabGrafo = new Tab("Grafo y aristas", centerSplit);
         Tab tabRepresentaciones = new Tab("Listas y matriz de adyacencia", crearPanelAdyacencia());
+        Tab tabAnalisis = new Tab("Análisis de rendimiento", crearPanelAnalisis());
         tabGrafo.setClosable(false);
         tabRepresentaciones.setClosable(false);
-        pestanasCentro.getTabs().addAll(tabGrafo, tabRepresentaciones);
+        tabAnalisis.setClosable(false);
+        pestanasCentro.getTabs().addAll(tabGrafo, tabRepresentaciones, tabAnalisis);
         root.setCenter(pestanasCentro);
 
         VBox leftMenu = new VBox(8);
@@ -174,19 +182,27 @@ public class MainApp extends Application {
         btnDijkstra.setMaxWidth(Double.MAX_VALUE);
         btnDijkstra.setOnAction(e -> ejecutarDijkstra(txtOrigen.getText(), txtDestino.getText()));
 
-        Button btnQuickPeso = new Button("QuickSort (por Peso)");
-        btnQuickPeso.setMaxWidth(Double.MAX_VALUE);
-        btnQuickPeso.setOnAction(e -> ordenarAristas(true, Ordenamiento.Criterio.PESO));
+        ComboBox<String> cmbCriterioOrdenamiento = new ComboBox<>(
+                FXCollections.observableArrayList("Peso", "Vértice de origen"));
+        cmbCriterioOrdenamiento.setValue("Peso");
+        cmbCriterioOrdenamiento.setMaxWidth(Double.MAX_VALUE);
 
-        Button btnShellVertice = new Button("ShellSort (por Vértice)");
-        btnShellVertice.setMaxWidth(Double.MAX_VALUE);
-        btnShellVertice.setOnAction(e -> ordenarAristas(false, Ordenamiento.Criterio.VERTICE_ORIGEN));
+        Button btnQuickSort = new Button("QuickSort");
+        btnQuickSort.setMaxWidth(Double.MAX_VALUE);
+        btnQuickSort.setOnAction(e -> ordenarAristas(true,
+                obtenerCriterioOrdenamiento(cmbCriterioOrdenamiento.getValue())));
+
+        Button btnShellSort = new Button("ShellSort");
+        btnShellSort.setMaxWidth(Double.MAX_VALUE);
+        btnShellSort.setOnAction(e -> ordenarAristas(false,
+                obtenerCriterioOrdenamiento(cmbCriterioOrdenamiento.getValue())));
 
         leftMenu.getChildren().addAll(
                 new Label("Gestión Manual:"), txtOrigen, txtDestino, txtPeso,
                 btnAddVertice, btnAddArista, new Separator(),
                 new Label("Algoritmos:"), btnBFS, btnDFS, btnDijkstra, new Separator(),
-                new Label("Ordenamiento:"), btnQuickPeso, btnShellVertice
+                new Label("Ordenar aristas por:"), cmbCriterioOrdenamiento,
+                btnQuickSort, btnShellSort
         );
         root.setLeft(leftMenu);
 
@@ -237,6 +253,149 @@ public class MainApp extends Application {
         panel.setPadding(new Insets(10));
         VBox.setVgrow(representaciones, Priority.ALWAYS);
         return panel;
+    }
+
+    private VBox crearPanelAnalisis() {
+        Button botonEjecutar = new Button("Ejecutar comparación");
+        Label estado = new Label("Mediana de 5 mediciones (2 calentamientos). BFS/DFS desde el vértice menor; "
+                + "Dijkstra del menor al mayor. QuickSort y ShellSort ordenan por peso. "
+                + "Importación incluye lectura CSV; construcción excluye la lectura.");
+        estado.setWrapText(true);
+        HBox controles = new HBox(12, botonEjecutar, estado);
+        controles.setPadding(new Insets(0, 0, 8, 0));
+
+        LineChart<Number, Number> graficaImportacion = crearGrafica("Importación CSV y construcción",
+                "Vértices", "Tiempo (ms)", "Importación CSV", "Construcción");
+        LineChart<Number, Number> graficaRecorridos = crearGrafica("Recorridos y ruta mínima",
+                "Vértices", "Tiempo (ms)", "BFS", "DFS", "Dijkstra");
+        LineChart<Number, Number> graficaOrdenamientos = crearGrafica("Comparación de ordenamientos por peso",
+                "Aristas", "Tiempo (ms)", "QuickSort", "ShellSort");
+
+        TableView<BenchmarkService.Resultado> tabla = crearTablaAnalisis();
+        TabPane vistas = new TabPane(
+                new Tab("CSV y construcción", graficaImportacion),
+                new Tab("BFS, DFS y Dijkstra", graficaRecorridos),
+                new Tab("QuickSort y ShellSort", graficaOrdenamientos),
+                new Tab("Tabla de resultados", tabla));
+        for (Tab tab : vistas.getTabs()) tab.setClosable(false);
+
+        botonEjecutar.setOnAction(event -> {
+            botonEjecutar.setDisable(true);
+            estado.setText("Midiendo... La interfaz seguirá respondiendo.");
+            boolean dirigido = grafo.isEsDirigido();
+            Task<List<BenchmarkService.Resultado>> tarea = new Task<>() {
+                @Override
+                protected List<BenchmarkService.Resultado> call() throws Exception {
+                    return BenchmarkService.ejecutar(new File("data"), dirigido);
+                }
+            };
+            tarea.setOnSucceeded(done -> {
+                List<BenchmarkService.Resultado> resultados = tarea.getValue();
+                tabla.setItems(FXCollections.observableArrayList(resultados));
+                actualizarGrafica(graficaImportacion, resultados,
+                        r -> r.vertices, r -> r.importacionMs, r -> r.construccionMs);
+                actualizarGrafica(graficaRecorridos, resultados,
+                        r -> r.vertices, r -> r.bfsMs, r -> r.dfsMs, r -> r.dijkstraMs);
+                actualizarGrafica(graficaOrdenamientos, resultados,
+                        r -> r.aristas, r -> r.quickSortMs, r -> r.shellSortMs);
+                estado.setText("Listo: " + resultados.size() + " archivos; modo "
+                        + (dirigido ? "dirigido" : "no dirigido") + ".");
+                botonEjecutar.setDisable(false);
+            });
+            tarea.setOnFailed(done -> {
+                Throwable error = tarea.getException();
+                estado.setText("Error: " + (error == null ? "no se pudieron completar las mediciones"
+                        : error.getMessage()));
+                botonEjecutar.setDisable(false);
+            });
+            Thread hilo = new Thread(tarea, "benchmark-grafos");
+            hilo.setDaemon(true);
+            hilo.start();
+        });
+
+        VBox panel = new VBox(8, controles, vistas);
+        panel.setPadding(new Insets(10));
+        VBox.setVgrow(vistas, Priority.ALWAYS);
+        return panel;
+    }
+
+    private LineChart<Number, Number> crearGrafica(String titulo, String etiquetaX,
+                                                   String etiquetaY, String... nombresSeries) {
+        NumberAxis ejeX = new NumberAxis();
+        ejeX.setLabel(etiquetaX);
+        NumberAxis ejeY = new NumberAxis();
+        ejeY.setLabel(etiquetaY);
+        LineChart<Number, Number> grafica = new LineChart<>(ejeX, ejeY);
+        grafica.setTitle(titulo);
+        grafica.setCreateSymbols(true);
+        grafica.setAnimated(false);
+        for (String nombre : nombresSeries) {
+            XYChart.Series<Number, Number> serie = new XYChart.Series<>();
+            serie.setName(nombre);
+            grafica.getData().add(serie);
+        }
+        return grafica;
+    }
+
+    @SafeVarargs
+    private final void actualizarGrafica(LineChart<Number, Number> grafica,
+                                         List<BenchmarkService.Resultado> resultados,
+                                         java.util.function.ToIntFunction<BenchmarkService.Resultado> ejeX,
+                                         java.util.function.ToDoubleFunction<BenchmarkService.Resultado>... valores) {
+        for (int indice = 0; indice < grafica.getData().size(); indice++) {
+            XYChart.Series<Number, Number> serie = grafica.getData().get(indice);
+            serie.getData().clear();
+            for (BenchmarkService.Resultado resultado : resultados) {
+                XYChart.Data<Number, Number> punto = new XYChart.Data<>(
+                        ejeX.applyAsInt(resultado), valores[indice].applyAsDouble(resultado));
+                punto.setExtraValue(resultado.archivo);
+                serie.getData().add(punto);
+            }
+        }
+    }
+
+    private TableView<BenchmarkService.Resultado> crearTablaAnalisis() {
+        TableView<BenchmarkService.Resultado> tabla = new TableView<>();
+        tabla.getColumns().add(columnaTexto("Archivo", r -> r.archivo));
+        tabla.getColumns().add(columnaNumero("Vértices", r -> r.vertices));
+        tabla.getColumns().add(columnaNumero("Aristas", r -> r.aristas));
+        tabla.getColumns().add(columnaDecimal("Importar (ms)", r -> r.importacionMs));
+        tabla.getColumns().add(columnaDecimal("Construir (ms)", r -> r.construccionMs));
+        tabla.getColumns().add(columnaDecimal("BFS (ms)", r -> r.bfsMs));
+        tabla.getColumns().add(columnaDecimal("DFS (ms)", r -> r.dfsMs));
+        tabla.getColumns().add(columnaDecimal("Dijkstra (ms)", r -> r.dijkstraMs));
+        tabla.getColumns().add(columnaDecimal("QuickSort (ms)", r -> r.quickSortMs));
+        tabla.getColumns().add(columnaDecimal("ShellSort (ms)", r -> r.shellSortMs));
+        tabla.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
+        return tabla;
+    }
+
+    private TableColumn<BenchmarkService.Resultado, String> columnaTexto(
+            String titulo, java.util.function.Function<BenchmarkService.Resultado, String> valor) {
+        TableColumn<BenchmarkService.Resultado, String> columna = new TableColumn<>(titulo);
+        columna.setCellValueFactory(celda -> new SimpleStringProperty(valor.apply(celda.getValue())));
+        return columna;
+    }
+
+    private TableColumn<BenchmarkService.Resultado, Number> columnaNumero(
+            String titulo, java.util.function.ToIntFunction<BenchmarkService.Resultado> valor) {
+        TableColumn<BenchmarkService.Resultado, Number> columna = new TableColumn<>(titulo);
+        columna.setCellValueFactory(celda -> new SimpleIntegerProperty(valor.applyAsInt(celda.getValue())));
+        return columna;
+    }
+
+    private TableColumn<BenchmarkService.Resultado, Number> columnaDecimal(
+            String titulo, java.util.function.ToDoubleFunction<BenchmarkService.Resultado> valor) {
+        TableColumn<BenchmarkService.Resultado, Number> columna = new TableColumn<>(titulo);
+        columna.setCellValueFactory(celda -> new SimpleDoubleProperty(valor.applyAsDouble(celda.getValue())));
+        columna.setCellFactory(c -> new TableCell<>() {
+            @Override
+            protected void updateItem(Number numero, boolean vacio) {
+                super.updateItem(numero, vacio);
+                setText(vacio || numero == null ? null : String.format("%.4f", numero.doubleValue()));
+            }
+        });
+        return columna;
     }
 
     private void actualizarRepresentaciones() {
@@ -497,6 +656,12 @@ public class MainApp extends Application {
                         u, v, (t2 - t1) / 1_000_000.0, res.costoTotal, res.ruta));
             }
         } catch (Exception e) { log("Ingresa origen y destino válidos."); }
+    }
+
+    private Ordenamiento.Criterio obtenerCriterioOrdenamiento(String seleccion) {
+        return "Vértice de origen".equals(seleccion)
+                ? Ordenamiento.Criterio.VERTICE_ORIGEN
+                : Ordenamiento.Criterio.PESO;
     }
 
     private void ordenarAristas(boolean usarQuickSort, Ordenamiento.Criterio criterio) {
