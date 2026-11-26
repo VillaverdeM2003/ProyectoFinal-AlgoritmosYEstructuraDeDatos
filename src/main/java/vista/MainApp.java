@@ -33,6 +33,8 @@ public class MainApp extends Application {
     private Pane panelGrafo = new Pane();
     private TableView<Arista> tablaAristas = new TableView<>();
     private TextArea consola = new TextArea();
+    private TextArea textoListaAdyacencia = new TextArea();
+    private TextArea textoMatrizAdyacencia = new TextArea();
 
     @Override
     public void start(Stage stage) {
@@ -99,7 +101,15 @@ public class MainApp extends Application {
         configurarTabla();
         centerSplit.getItems().addAll(panelGrafo, tablaAristas);
         centerSplit.setDividerPositions(0.68);
-        root.setCenter(centerSplit);
+
+        configurarVistasAdyacencia();
+        TabPane pestanasCentro = new TabPane();
+        Tab tabGrafo = new Tab("Grafo y aristas", centerSplit);
+        Tab tabRepresentaciones = new Tab("Listas y matriz de adyacencia", crearPanelAdyacencia());
+        tabGrafo.setClosable(false);
+        tabRepresentaciones.setClosable(false);
+        pestanasCentro.getTabs().addAll(tabGrafo, tabRepresentaciones);
+        root.setCenter(pestanasCentro);
 
         VBox leftMenu = new VBox(8);
         leftMenu.setPadding(new Insets(0, 10, 0, 0));
@@ -118,6 +128,7 @@ public class MainApp extends Application {
             panelGrafo.getChildren().clear();
             tablaAristas.getItems().clear();
             consola.clear();
+            actualizarRepresentaciones();
         });
 
         Button btnAddVertice = new Button("Agregar Vértice (Origen)");
@@ -144,7 +155,11 @@ public class MainApp extends Application {
                 } else {
                     log("Error: Conexión inválida, duplicada o mismo vértice.");
                 }
-            } catch (Exception ex) { log("Error en los datos de la arista."); }
+            } catch (NumberFormatException ex) {
+                log("Error: origen, destino y peso deben ser números válidos.");
+            } catch (IllegalArgumentException ex) {
+                log("Error: " + ex.getMessage());
+            }
         });
 
         Button btnBFS = new Button("Ejecutar BFS (desde Origen)");
@@ -200,8 +215,74 @@ public class MainApp extends Application {
         tablaAristas.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
     }
 
+    private void configurarVistasAdyacencia() {
+        textoListaAdyacencia.setEditable(false);
+        textoListaAdyacencia.setStyle("-fx-font-family: monospace;");
+        textoMatrizAdyacencia.setEditable(false);
+        textoMatrizAdyacencia.setStyle("-fx-font-family: monospace;");
+    }
+
+    private VBox crearPanelAdyacencia() {
+        Label etiquetaLista = new Label("Lista de adyacencia (vecinos y pesos por vértice)");
+        Label etiquetaMatriz = new Label("Matriz de adyacencia (∞ indica que no existe conexión)");
+
+        VBox lista = new VBox(6, etiquetaLista, textoListaAdyacencia);
+        VBox matriz = new VBox(6, etiquetaMatriz, textoMatrizAdyacencia);
+        VBox.setVgrow(textoListaAdyacencia, Priority.ALWAYS);
+        VBox.setVgrow(textoMatrizAdyacencia, Priority.ALWAYS);
+        SplitPane representaciones = new SplitPane(lista, matriz);
+        representaciones.setDividerPositions(0.35);
+
+        VBox panel = new VBox(representaciones);
+        panel.setPadding(new Insets(10));
+        VBox.setVgrow(representaciones, Priority.ALWAYS);
+        return panel;
+    }
+
+    private void actualizarRepresentaciones() {
+        List<Integer> vertices = new ArrayList<>(grafo.getVertices());
+        StringBuilder lista = new StringBuilder();
+        for (int vertice : vertices) {
+            lista.append(vertice).append(" -> ");
+            List<Arista> adyacentes = grafo.getListaAdyacencia()
+                    .getOrDefault(vertice, Collections.emptyList());
+            if (adyacentes.isEmpty()) {
+                lista.append("(sin conexiones)");
+            } else {
+                for (int i = 0; i < adyacentes.size(); i++) {
+                    Arista arista = adyacentes.get(i);
+                    if (i > 0) lista.append(", ");
+                    lista.append(arista.getDestino()).append(" (peso ")
+                            .append(arista.getPeso()).append(")");
+                }
+            }
+            lista.append('\n');
+        }
+        textoListaAdyacencia.setText(lista.length() == 0 ? "(grafo vacío)" : lista.toString());
+
+        StringBuilder matrizTexto = new StringBuilder();
+        if (vertices.isEmpty()) {
+            matrizTexto.append("(grafo vacío)");
+        } else {
+            double[][] matriz = grafo.obtenerMatrizAdyacencia();
+            matrizTexto.append("vértice");
+            for (int vertice : vertices) matrizTexto.append('\t').append(vertice);
+            matrizTexto.append('\n');
+            for (int fila = 0; fila < vertices.size(); fila++) {
+                matrizTexto.append(vertices.get(fila));
+                for (int columna = 0; columna < vertices.size(); columna++) {
+                    double peso = matriz[fila][columna];
+                    matrizTexto.append('\t').append(Double.isInfinite(peso) ? "∞" : peso);
+                }
+                matrizTexto.append('\n');
+            }
+        }
+        textoMatrizAdyacencia.setText(matrizTexto.toString());
+    }
+
     private void actualizarVista() {
         tablaAristas.setItems(FXCollections.observableArrayList(grafo.obtenerTodasLasAristas()));
+        actualizarRepresentaciones();
         panelGrafo.getChildren().clear();
 
         int n = grafo.getVertices().size();
