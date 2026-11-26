@@ -4,4 +4,6 @@ module org.example.proyectofinal {
 
     exports modelo;
     exports io;
+    exports algoritmos;
+    exports vista;
  }
