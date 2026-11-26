@@ -264,8 +264,8 @@ public class MainApp extends Application {
         HBox controles = new HBox(12, botonEjecutar, estado);
         controles.setPadding(new Insets(0, 0, 8, 0));
 
-        LineChart<Number, Number> graficaImportacion = crearGrafica("Importación CSV y construcción",
-                "Vértices", "Tiempo (ms)", "Importación CSV", "Construcción");
+        LineChart<Number, Number> graficaImportacion = crearGrafica("Tiempo de importación CSV",
+                "Vértices", "Tiempo (ms)", "Importación CSV");
         LineChart<Number, Number> graficaRecorridos = crearGrafica("Recorridos y ruta mínima",
                 "Vértices", "Tiempo (ms)", "BFS", "DFS", "Dijkstra");
         LineChart<Number, Number> graficaOrdenamientos = crearGrafica("Comparación de ordenamientos por peso",
@@ -273,7 +273,7 @@ public class MainApp extends Application {
 
         TableView<BenchmarkService.Resultado> tabla = crearTablaAnalisis();
         TabPane vistas = new TabPane(
-                new Tab("CSV y construcción", graficaImportacion),
+                new Tab("Importación CSV", graficaImportacion),
                 new Tab("BFS, DFS y Dijkstra", graficaRecorridos),
                 new Tab("QuickSort y ShellSort", graficaOrdenamientos),
                 new Tab("Tabla de resultados", tabla));
@@ -293,7 +293,7 @@ public class MainApp extends Application {
                 List<BenchmarkService.Resultado> resultados = tarea.getValue();
                 tabla.setItems(FXCollections.observableArrayList(resultados));
                 actualizarGrafica(graficaImportacion, resultados,
-                        r -> r.vertices, r -> r.importacionMs, r -> r.construccionMs);
+                        r -> r.vertices, r -> r.importacionMs);
                 actualizarGrafica(graficaRecorridos, resultados,
                         r -> r.vertices, r -> r.bfsMs, r -> r.dfsMs, r -> r.dijkstraMs);
                 actualizarGrafica(graficaOrdenamientos, resultados,
