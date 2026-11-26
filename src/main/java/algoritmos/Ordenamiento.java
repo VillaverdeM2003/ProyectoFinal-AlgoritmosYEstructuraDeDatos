@@ -20,6 +20,28 @@ public class Ordenamiento {
         quickSortRecursivo(lista, 0, lista.size() - 1, criterio);
     }
 
+    public static void shellSort(List<Arista> lista, Criterio criterio) {
+        if (lista == null || lista.size() <= 1) {
+            return;
+        }
+        Objects.requireNonNull(criterio, "El criterio de ordenamiento es obligatorio.");
+
+        for (int brecha = lista.size() / 2; brecha > 0; brecha /= 2) {
+            for (int indice = brecha; indice < lista.size(); indice++) {
+                Arista actual = lista.get(indice);
+                int posicion = indice;
+
+                while (posicion >= brecha
+                        && comparar(lista.get(posicion - brecha), actual, criterio) > 0) {
+                    lista.set(posicion, lista.get(posicion - brecha));
+                    posicion -= brecha;
+                }
+
+                lista.set(posicion, actual);
+            }
+        }
+    }
+
     private static void quickSortRecursivo(
             List<Arista> lista,
             int bajo,
