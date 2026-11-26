@@ -258,7 +258,7 @@ public class MainApp extends Application {
     private VBox crearPanelAnalisis() {
         Button botonEjecutar = new Button("Ejecutar comparación");
         Label estado = new Label("Mediana de 5 mediciones (2 calentamientos). BFS/DFS desde el vértice menor; "
-                + "Dijkstra del menor al mayor. QuickSort y ShellSort ordenan por peso. "
+                + "Dijkstra del menor al mayor. QuickSort y ShellSort se comparan por peso y vértice de origen. "
                 + "Importación incluye lectura CSV; construcción excluye la lectura.");
         estado.setWrapText(true);
         HBox controles = new HBox(12, botonEjecutar, estado);
@@ -268,14 +268,18 @@ public class MainApp extends Application {
                 "Vértices", "Tiempo (ms)", "Importación CSV");
         LineChart<Number, Number> graficaRecorridos = crearGrafica("Recorridos y ruta mínima",
                 "Vértices", "Tiempo (ms)", "BFS", "DFS", "Dijkstra");
-        LineChart<Number, Number> graficaOrdenamientos = crearGrafica("Comparación de ordenamientos por peso",
+        LineChart<Number, Number> graficaOrdenamientosPeso = crearGrafica("Comparación de ordenamientos por peso",
+                "Aristas", "Tiempo (ms)", "QuickSort", "ShellSort");
+        LineChart<Number, Number> graficaOrdenamientosVertice = crearGrafica(
+                "Comparación de ordenamientos por vértice de origen",
                 "Aristas", "Tiempo (ms)", "QuickSort", "ShellSort");
 
         TableView<BenchmarkService.Resultado> tabla = crearTablaAnalisis();
         TabPane vistas = new TabPane(
                 new Tab("Importación CSV", graficaImportacion),
                 new Tab("BFS, DFS y Dijkstra", graficaRecorridos),
-                new Tab("QuickSort y ShellSort", graficaOrdenamientos),
+                new Tab("Ordenamiento por peso", graficaOrdenamientosPeso),
+                new Tab("Ordenamiento por vértice", graficaOrdenamientosVertice),
                 new Tab("Tabla de resultados", tabla));
         for (Tab tab : vistas.getTabs()) tab.setClosable(false);
 
@@ -296,8 +300,10 @@ public class MainApp extends Application {
                         r -> r.vertices, r -> r.importacionMs);
                 actualizarGrafica(graficaRecorridos, resultados,
                         r -> r.vertices, r -> r.bfsMs, r -> r.dfsMs, r -> r.dijkstraMs);
-                actualizarGrafica(graficaOrdenamientos, resultados,
-                        r -> r.aristas, r -> r.quickSortMs, r -> r.shellSortMs);
+                actualizarGrafica(graficaOrdenamientosPeso, resultados,
+                        r -> r.aristas, r -> r.quickSortPesoMs, r -> r.shellSortPesoMs);
+                actualizarGrafica(graficaOrdenamientosVertice, resultados,
+                        r -> r.aristas, r -> r.quickSortVerticeMs, r -> r.shellSortVerticeMs);
                 estado.setText("Listo: " + resultados.size() + " archivos; modo "
                         + (dirigido ? "dirigido" : "no dirigido") + ".");
                 botonEjecutar.setDisable(false);
@@ -364,8 +370,10 @@ public class MainApp extends Application {
         tabla.getColumns().add(columnaDecimal("BFS (ms)", r -> r.bfsMs));
         tabla.getColumns().add(columnaDecimal("DFS (ms)", r -> r.dfsMs));
         tabla.getColumns().add(columnaDecimal("Dijkstra (ms)", r -> r.dijkstraMs));
-        tabla.getColumns().add(columnaDecimal("QuickSort (ms)", r -> r.quickSortMs));
-        tabla.getColumns().add(columnaDecimal("ShellSort (ms)", r -> r.shellSortMs));
+        tabla.getColumns().add(columnaDecimal("QuickSort peso (ms)", r -> r.quickSortPesoMs));
+        tabla.getColumns().add(columnaDecimal("ShellSort peso (ms)", r -> r.shellSortPesoMs));
+        tabla.getColumns().add(columnaDecimal("QuickSort vértice (ms)", r -> r.quickSortVerticeMs));
+        tabla.getColumns().add(columnaDecimal("ShellSort vértice (ms)", r -> r.shellSortVerticeMs));
         tabla.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
         return tabla;
     }

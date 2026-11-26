@@ -49,7 +49,7 @@ public final class BenchmarkService {
 
             if (vertices.isEmpty()) {
                 resultados.add(new Resultado(archivo.getName(), 0, 0, importacionMs,
-                        construccionMs, 0, 0, 0, 0, 0));
+                        construccionMs, 0, 0, 0, 0, 0, 0, 0));
                 continue;
             }
 
@@ -61,12 +61,14 @@ public final class BenchmarkService {
                     resultadoDescartable = AlgoritmosGrafo.dfs(referencia, inicio));
             double dijkstraMs = medirMediana(() ->
                     resultadoDescartable = AlgoritmosGrafo.dijkstra(referencia, inicio, destino));
-            double quickSortMs = medirOrdenamiento(aristas, true);
-            double shellSortMs = medirOrdenamiento(aristas, false);
+            double quickSortPesoMs = medirOrdenamiento(aristas, true, Ordenamiento.Criterio.PESO);
+            double shellSortPesoMs = medirOrdenamiento(aristas, false, Ordenamiento.Criterio.PESO);
+            double quickSortVerticeMs = medirOrdenamiento(aristas, true, Ordenamiento.Criterio.VERTICE_ORIGEN);
+            double shellSortVerticeMs = medirOrdenamiento(aristas, false, Ordenamiento.Criterio.VERTICE_ORIGEN);
 
             resultados.add(new Resultado(archivo.getName(), vertices.size(), aristas.size(),
                     importacionMs, construccionMs, bfsMs, dfsMs, dijkstraMs,
-                    quickSortMs, shellSortMs));
+                    quickSortPesoMs, shellSortPesoMs, quickSortVerticeMs, shellSortVerticeMs));
         }
         return resultados;
     }
@@ -80,15 +82,16 @@ public final class BenchmarkService {
         return nuevo;
     }
 
-    private static double medirOrdenamiento(List<Arista> aristas, boolean quickSort) {
+    private static double medirOrdenamiento(List<Arista> aristas, boolean quickSort,
+                                            Ordenamiento.Criterio criterio) {
         long[] muestras = new long[REPETICIONES];
         for (int i = -CALENTAMIENTOS; i < REPETICIONES; i++) {
             List<Arista> copia = new ArrayList<>(aristas);
             long inicio = System.nanoTime();
             if (quickSort) {
-                Ordenamiento.quickSort(copia, Ordenamiento.Criterio.PESO);
+                Ordenamiento.quickSort(copia, criterio);
             } else {
-                Ordenamiento.shellSort(copia, Ordenamiento.Criterio.PESO);
+                Ordenamiento.shellSort(copia, criterio);
             }
             long duracion = System.nanoTime() - inicio;
             resultadoDescartable = copia;
@@ -122,12 +125,15 @@ public final class BenchmarkService {
         public final double bfsMs;
         public final double dfsMs;
         public final double dijkstraMs;
-        public final double quickSortMs;
-        public final double shellSortMs;
+        public final double quickSortPesoMs;
+        public final double shellSortPesoMs;
+        public final double quickSortVerticeMs;
+        public final double shellSortVerticeMs;
 
         private Resultado(String archivo, int vertices, int aristas, double importacionMs,
                           double construccionMs, double bfsMs, double dfsMs, double dijkstraMs,
-                          double quickSortMs, double shellSortMs) {
+                          double quickSortPesoMs, double shellSortPesoMs,
+                          double quickSortVerticeMs, double shellSortVerticeMs) {
             this.archivo = archivo;
             this.vertices = vertices;
             this.aristas = aristas;
@@ -136,8 +142,10 @@ public final class BenchmarkService {
             this.bfsMs = bfsMs;
             this.dfsMs = dfsMs;
             this.dijkstraMs = dijkstraMs;
-            this.quickSortMs = quickSortMs;
-            this.shellSortMs = shellSortMs;
+            this.quickSortPesoMs = quickSortPesoMs;
+            this.shellSortPesoMs = shellSortPesoMs;
+            this.quickSortVerticeMs = quickSortVerticeMs;
+            this.shellSortVerticeMs = shellSortVerticeMs;
         }
     }
 
