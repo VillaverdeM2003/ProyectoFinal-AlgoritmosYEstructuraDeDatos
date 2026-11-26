@@ -36,11 +36,14 @@ public class Grafo {
         if (origen < 0 || destino < 0) {
             throw new IllegalArgumentException("Los vértices deben ser enteros no negativos.");
         }
+        if (origen == destino) {
+            throw new IllegalArgumentException("No se permiten bucles (origen y destino no pueden ser iguales).");
+        }
         agregarVertice(origen);
         agregarVertice(destino);
 
         boolean esNueva = actualizarOAgregar(origen, destino, peso);
-        if (!esDirigido && origen != destino) {
+        if (!esDirigido) {
             actualizarOAgregar(destino, origen, peso);
         }
         return esNueva;
